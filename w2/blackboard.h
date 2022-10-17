@@ -7,6 +7,13 @@
 #include "ecsTypes.h"
 
 template<typename DataType>
+struct NamedDataValue 
+{
+  DataType value;
+  bool is_initialized = false;
+};
+
+template<typename DataType>
 class NamedDataPool
 {
 public:
@@ -18,26 +25,28 @@ public:
 
     size_t idx = data.size();
     nameIndices.emplace(name, idx);
-    data.emplace_back(DataType());
+    data.emplace_back(NamedDataValue<DataType>());
     return idx;
   }
 
   void set(size_t idx, const DataType &in_data)
   {
-    data[idx] = in_data;
+    data[idx] = {in_data, true};
+
   }
 
-  DataType get(size_t idx) const
+  NamedDataValue<DataType> get(size_t idx) const
   {
     return data[idx];
   }
 private:
   std::unordered_map<std::string, size_t> nameIndices;
-  std::vector<DataType> data;
+  std::vector<NamedDataValue<DataType>> data;
 };
 
 class Blackboard : public NamedDataPool<float>,
                    public NamedDataPool<int>,
+                   public NamedDataPool<bool>,
                    public NamedDataPool<flecs::entity>,
                    public NamedDataPool<Position>
 {
@@ -56,6 +65,12 @@ public:
 
   template<typename DataType>
   DataType get(size_t idx) const
+  {
+    return NamedDataPool<DataType>::get(idx).value;
+  }
+
+  template<typename DataType>
+  NamedDataValue<DataType> get_safe(size_t idx) const
   {
     return NamedDataPool<DataType>::get(idx);
   }

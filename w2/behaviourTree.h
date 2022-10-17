@@ -11,10 +11,24 @@ enum BehResult
   BEH_RUNNING
 };
 
+enum BehEvent
+{
+  E_DEFAULT,
+  E_DANGER,
+  E_SAFE
+};
+
+struct Event
+{
+  BehEvent beh_event;
+};
+
+
 struct BehNode
 {
   virtual ~BehNode() {}
   virtual BehResult update(flecs::world &ecs, flecs::entity entity, Blackboard &bb) = 0;
+  virtual void react(flecs::world &ecs, flecs::entity entity, Blackboard &bb, BehEvent event) {};
 };
 
 struct BehaviourTree
@@ -35,6 +49,10 @@ struct BehaviourTree
   void update(flecs::world &ecs, flecs::entity entity, Blackboard &bb)
   {
     root->update(ecs, entity, bb);
+  }
+  void react(flecs::world &ecs, flecs::entity entity, Blackboard &bb, BehEvent event)
+  {
+    root->react(ecs, entity, bb, event);
   }
 };
 

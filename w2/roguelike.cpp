@@ -12,7 +12,12 @@ static void create_minotaur_beh(flecs::entity e)
   BehNode *root =
     selector({
       sequence({
-        is_low_hp(50.f),
+        logic_not({is_safe(e)}),
+        find_enemy(e, 1000.f, "danger_enemy"),
+        move_to_entity(e, "danger_enemy")
+      }),
+      sequence({
+        is_low_hp(90.f),
         find_enemy(e, 4.f, "flee_enemy"),
         flee(e, "flee_enemy")
       }),
@@ -21,6 +26,34 @@ static void create_minotaur_beh(flecs::entity e)
         move_to_entity(e, "attack_enemy")
       }),
       patrol(e, 2.f, "patrol_pos")
+    });
+  e.set(BehaviourTree{root});
+}
+
+static void create_traveller_beh(flecs::entity e, flecs::entity path) 
+{
+    e.set(Blackboard{});
+  BehNode *root =
+    selector({
+      sequence({
+        is_low_hp(50.f),
+        find_enemy(e, 4.f, "flee_enemy"),
+        flee(e, "flee_enemy")
+      }),
+      sequence({
+        find_enemy(e, 3.f, "attack_enemy"),
+        move_to_entity(e, "attack_enemy")
+      }),
+      fallback({
+          sequence({
+            parallel({
+              move_to_entity(e, "current_waypoint"),
+              set_random_color(1.0f)
+            }),
+            get_next_waypoint(e, path, "current_waypoint"),
+          }),
+          get_next_waypoint(e, path, "current_waypoint"),
+      })
     });
   e.set(BehaviourTree{root});
 }
@@ -58,6 +91,23 @@ static void create_player(flecs::world &ecs, int x, int y, const char *texture_s
     .set(Color{255, 255, 255, 255})
     .add<TextureSource>(textureSrc)
     .set(MeleeDamage{50.f});
+}
+
+static flecs::entity creaty_waypoint(flecs::world &ecs, int x, int y)
+{
+  return ecs.entity()
+      .set(Position{x, y})
+      .add<WayPoint>();
+}
+
+static flecs::entity create_path(flecs::world &ecs) {
+  std::vector<flecs::entity> points = {
+    creaty_waypoint(ecs, 7, 7),
+    creaty_waypoint(ecs, -7, 7),
+    creaty_waypoint(ecs, -7, -7),
+    creaty_waypoint(ecs, 7, -7)
+  };
+  return ecs.entity().set(Path{points});
 }
 
 static void create_heal(flecs::world &ecs, int x, int y, float amount)
@@ -137,6 +187,11 @@ void init_roguelike(flecs::world &ecs)
   create_minotaur_beh(create_monster(ecs, 10, -5, Color{0xee, 0x00, 0xee, 0xff}, "minotaur_tex"));
   create_minotaur_beh(create_monster(ecs, -5, -5, Color{0x11, 0x11, 0x11, 0xff}, "minotaur_tex"));
   create_minotaur_beh(create_monster(ecs, -5, 5, Color{0, 255, 0, 255}, "minotaur_tex"));
+  create_traveller_beh(
+    create_monster(ecs, 8, 8, Color{0, 128, 255, 255}, "minotaur_tex"), 
+    create_path(ecs)
+  );
+
 
   create_player(ecs, 0, 0, "swordsman_tex");
 
@@ -188,6 +243,15 @@ static void process_actions(flecs::world &ecs)
 {
   static auto processActions = ecs.query<Action, Position, MovePos, const MeleeDamage, const Team>();
   static auto checkAttacks = ecs.query<const MovePos, Hitpoints, const Team>();
+
+  // static auto dangerIfDead = ecs.query<const Hitpoints>();
+  // dangerIfDead.each([&](const Hitpoints &hp){
+  //   if (hp.hitpoints <= 0.f)
+  //     flecs::entity().set(Event{BehEvent::E_DANGER});
+  // });
+
+  // auto event = flecs::entity().set(Event{BehEvent::E_DANGER});
+
   // Process all actions
   ecs.defer([&]
   {
@@ -258,6 +322,8 @@ void process_turn(flecs::world &ecs)
 {
   static auto stateMachineAct = ecs.query<StateMachine>();
   static auto behTreeUpdate = ecs.query<BehaviourTree, Blackboard>();
+  static auto eventReact = ecs.query<Event>();
+
   if (is_player_acted(ecs))
   {
     if (upd_player_actions_count(ecs))
@@ -272,6 +338,13 @@ void process_turn(flecs::world &ecs)
         behTreeUpdate.each([&](flecs::entity e, BehaviourTree &bt, Blackboard &bb)
         {
           bt.update(ecs, e, bb);
+        });
+        eventReact.each([&](flecs::entity eventEntity, Event &event){
+          behTreeUpdate.each([&](flecs::entity e, BehaviourTree &bt, Blackboard &bb)
+          {
+            bt.react(ecs, e, bb, event.beh_event);
+          });
+          eventEntity.destruct();
         });
       });
     }

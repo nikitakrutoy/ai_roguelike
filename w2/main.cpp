@@ -4,6 +4,7 @@
 #include <flecs.h>
 #include "ecsTypes.h"
 #include "roguelike.h"
+#include "math.h"
 
 static void update_camera(Camera2D &cam, flecs::world &ecs)
 {

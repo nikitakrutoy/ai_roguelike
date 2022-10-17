@@ -1,5 +1,8 @@
 #pragma once
 
+#include <vector>
+#include <flecs.h>
+
 struct Position;
 struct MovePos;
 
@@ -111,4 +114,11 @@ struct Team
 };
 
 struct TextureSource {};
+
+struct WayPoint {};
+
+struct Path 
+{
+  std::vector<flecs::entity> points;
+};
 
