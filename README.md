@@ -1,3 +1,8 @@
+## Crafter FSM
+
+![Crafter FSM](resources/crafter_fsm.png?raw=true "Crafter FSM")
+
+
 Learning materials for the course "AI for videogames" based on simple roguelike mechanics.
 * w1 - FSM
 * w2 - Behaviour Trees + blackboard
