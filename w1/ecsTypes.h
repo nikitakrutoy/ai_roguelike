@@ -108,6 +108,7 @@ struct Color
 };
 
 struct IsPlayer {};
+struct IsHealer {};
 
 struct Team
 {
