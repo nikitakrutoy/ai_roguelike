@@ -5,54 +5,99 @@
 #include "aiLibrary.h"
 #include "blackboard.h"
 #include "math.h"
-
-static void create_fuzzy_monster_beh(flecs::entity e)
+static void create_explorer_monster_beh(flecs::entity e, flecs::entity &base_e)
 {
-  e.set(Blackboard{});
-  BehNode *root =
-    utility_selector({
-      std::make_pair(
-        sequence({
-          find_enemy(e, 4.f, "flee_enemy"),
-          flee(e, "flee_enemy")
-        }),
-        [](Blackboard &bb)
-        {
-          const float hp = bb.get<float>("hp");
-          const float enemyDist = bb.get<float>("enemyDist");
-          return (100.f - hp) * 5.f - 50.f * enemyDist;
-        }
-      ),
-      std::make_pair(
-        sequence({
-          find_enemy(e, 3.f, "attack_enemy"),
-          move_to_entity(e, "attack_enemy")
-        }),
-        [](Blackboard &bb)
-        {
-          const float enemyDist = bb.get<float>("enemyDist");
-          return 100.f - 10.f * enemyDist;
-        }
-      ),
-      std::make_pair(
-        patrol(e, 2.f, "patrol_pos"),
-        [](Blackboard &)
-        {
-          return 50.f;
-        }
-      ),
-      std::make_pair(
-        patch_up(100.f),
-        [](Blackboard &bb)
-        {
-          const float hp = bb.get<float>("hp");
-          return 140.f - hp;
-        }
-      )
-    });
-  e.add<WorldInfoGatherer>();
-  e.set(BehaviourTree{root});
+ e.set(Blackboard{});
+ BehNode* root =
+   utility_selector({
+     std::make_pair(
+       random_walk(e, "random_walk"),
+       [](Blackboard& bb)
+       {
+         const float allyDist = bb.get<float>("allyDist");
+         const float baseDist = bb.get<float>("baseDist");
+
+         return 50;
+       }
+     ),
+     std::make_pair(
+       sequence({
+         find_base(e, 100.f, "move_to_base"),
+         move_to_entity(e, "move_to_base")
+       }),
+       [](Blackboard& bb)
+       {
+         const float allyDist = bb.get<float>("allyDist");
+         const float baseDist = bb.get<float>("baseDist");
+         return std::max((50.f * (10 - allyDist) / 10) + baseDist * 10.f, 0.f);
+       }
+     ),
+     std::make_pair(
+       sequence({
+         find_enemy(e, 3.f, "attack_enemy"),
+         move_to_entity(e, "attack_enemy")
+       }),
+       [](Blackboard& bb)
+       {
+         float near = 3.0f;
+         const float baseDist = bb.get<float>("baseDist");
+         const float enemyDist = bb.get<float>("enemyDist");
+         return std::max(200.f * (near - baseDist), 0.f);
+       }
+     )
+   });
+ e.add<WorldInfoGatherer>();
+ e.set(BehaviourTree{ root });
 }
+
+
+//static void create_fuzzy_monster_beh(flecs::entity e)
+//{
+//  e.set(Blackboard{});
+//  BehNode *root =
+//    utility_selector({
+//      std::make_pair(
+//        sequence({
+//          find_enemy(e, 4.f, "flee_enemy"),
+//          flee(e, "flee_enemy")
+//        }),
+//        [](Blackboard &bb)
+//        {
+//          const float hp = bb.get<float>("hp");
+//          const float enemyDist = bb.get<float>("enemyDist");
+//          return (100.f - hp) * 5.f - 50.f * enemyDist;
+//        }
+//      ),
+//      std::make_pair(
+//        sequence({
+//          find_enemy(e, 3.f, "attack_enemy"),
+//          move_to_entity(e, "attack_enemy")
+//        }),
+//        [](Blackboard &bb)
+//        {
+//          const float enemyDist = bb.get<float>("enemyDist");
+//          return 100.f - 10.f * enemyDist;
+//        }
+//      ),
+//      std::make_pair(
+//        patrol(e, 2.f, "patrol_pos"),
+//        [](Blackboard &)
+//        {
+//          return 50.f;
+//        }
+//      ),
+//      std::make_pair(
+//        patch_up(100.f),
+//        [](Blackboard &bb)
+//        {
+//          const float hp = bb.get<float>("hp");
+//          return 140.f - hp;
+//        }
+//      )
+//    });
+//  e.add<WorldInfoGatherer>();
+//  e.set(BehaviourTree{root});
+//}
 
 static void create_minotaur_beh(flecs::entity e)
 {
@@ -124,6 +169,15 @@ static void create_powerup(flecs::world &ecs, int x, int y, float amount)
     .set(Color{0xff, 0xff, 0x00, 0xff});
 }
 
+static flecs::entity create_base(flecs::world& ecs, int x, int y)
+{
+  return ecs.entity()
+     .set(Position{ x, y })
+     .add<IsBase>()
+     .set(Color{ 0x00, 0xff, 0x00, 0xff });
+}
+
+
 static void register_roguelike_systems(flecs::world &ecs)
 {
   ecs.system<PlayerInput, Action, const IsPlayer>()
@@ -191,16 +245,33 @@ void init_roguelike(flecs::world &ecs)
         UnloadTexture(texture);
       });
 
-  create_fuzzy_monster_beh(create_monster(ecs, 5, 5, Color{0xee, 0x00, 0xee, 0xff}, "minotaur_tex"));
-  create_fuzzy_monster_beh(create_monster(ecs, 10, -5, Color{0xee, 0x00, 0xee, 0xff}, "minotaur_tex"));
-  create_fuzzy_monster_beh(create_monster(ecs, -5, -5, Color{0x11, 0x11, 0x11, 0xff}, "minotaur_tex"));
-  create_fuzzy_monster_beh(create_monster(ecs, -5, 5, Color{0, 255, 0, 255}, "minotaur_tex"));
+  //create_fuzzy_monster_beh(create_monster(ecs, 5, 5, Color{0xee, 0x00, 0xee, 0xff}, "minotaur_tex"));
+  //create_fuzzy_monster_beh(create_monster(ecs, 10, -5, Color{0xee, 0x00, 0xee, 0xff}, "minotaur_tex"));
+  //create_fuzzy_monster_beh(create_monster(ecs, -5, -5, Color{0x11, 0x11, 0x11, 0xff}, "minotaur_tex"));
+  //create_fuzzy_monster_beh(create_monster(ecs, -5, 5, Color{0, 255, 0, 255}, "minotaur_tex"));
 
   create_player(ecs, 0, 0, "swordsman_tex");
 
   create_powerup(ecs, 7, 7, 10.f);
   create_powerup(ecs, 10, -6, 10.f);
-  create_powerup(ecs, 10, -4, 10.f);
+
+  flecs::entity base = create_base(ecs, -5, -0);
+  create_explorer_monster_beh(
+    create_monster(ecs, -20, 0, Color{ 0, 255, 0, 255 }, "swordsman_tex").set_name("explorer1"),
+    base
+  );
+
+  create_explorer_monster_beh(
+    create_monster(ecs, -19, 0, Color{ 255, 0, 0, 255 }, "swordsman_tex").set_name("explorer2"),
+    base
+  );
+
+  create_explorer_monster_beh(
+    create_monster(ecs, -7, 0, Color{ 0, 0, 255, 255 }, "swordsman_tex").set_name("explorer3"),
+    base
+  );
+
+
 
   create_heal(ecs, -5, -5, 50.f);
   create_heal(ecs, -5, 5, 50.f);
@@ -357,18 +428,28 @@ static void gather_world_info(flecs::world &ecs)
                                           const WorldInfoGatherer,
                                           const Team>();
   static auto alliesQuery = ecs.query<const Position, const Team>();
-  gatherWorldInfo.each([&](Blackboard &bb, const Position &pos, const Hitpoints &hp,
+  static auto baseQuery = ecs.query<const Position, const IsBase>();
+  gatherWorldInfo.each([&](flecs::iter& it, size_t i, Blackboard &bb, const Position &pos, const Hitpoints &hp,
                            WorldInfoGatherer, const Team &team)
   {
     // first gather all needed names (without cache)
     push_info_to_bb(bb, "hp", hp.hitpoints);
     float numAllies = 0; // note float
     float closestEnemyDist = 100.f;
-    alliesQuery.each([&](const Position &apos, const Team &ateam)
+    float closestAllyDist = 100.f;
+    float closestBaseDist = 100.f;
+    flecs::entity_t iid = it.entity(i).id();
+    alliesQuery.each([&](flecs::iter& jt, size_t j, const Position &apos, const Team &ateam)
     {
+      flecs::entity_t jid = jt.entity(j).id();
       constexpr float limitDist = 5.f;
-      if (team.team == ateam.team && dist_sq(pos, apos) < sqr(limitDist))
+      if (jid != iid && team.team == ateam.team && dist_sq(pos, apos) < sqr(limitDist))
+      {
         numAllies += 1.f;
+        const float allyDist = dist(pos, apos);
+        if (allyDist < closestAllyDist)
+          closestAllyDist = allyDist;
+      }
       if (team.team != ateam.team)
       {
         const float enemyDist = dist(pos, apos);
@@ -376,8 +457,16 @@ static void gather_world_info(flecs::world &ecs)
           closestEnemyDist = enemyDist;
       }
     });
+    baseQuery.each([&](const Position& bpos, const IsBase &isbase)
+    {
+      const float baseDist = dist(pos, bpos);
+      if (baseDist < closestEnemyDist)
+        closestBaseDist = baseDist;
+    });
     push_info_to_bb(bb, "alliesNum", numAllies);
     push_info_to_bb(bb, "enemyDist", closestEnemyDist);
+    push_info_to_bb(bb, "allyDist", closestAllyDist);
+    push_info_to_bb(bb, "baseDist", closestBaseDist);
   });
 }
 

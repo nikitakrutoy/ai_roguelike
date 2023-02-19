@@ -109,6 +109,8 @@ struct Symbol
 
 struct IsPlayer {};
 
+struct IsBase {};
+
 struct WorldInfoGatherer {};
 
 struct Team
